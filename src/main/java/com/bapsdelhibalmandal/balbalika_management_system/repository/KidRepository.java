@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface KidRepository extends JpaRepository<Kid,Long> {
 
-    List<Kid> findBySabhaKshetra_KshetraId(Integer sabhaKshetraId);
+    List<Kid> findBySabhaKshetra_KshetraId(Long sabhaKshetraId);
 
     @Query("SELECT k FROM Kid k JOIN k.roles r WHERE r.roleId = :roleId")
     List<Kid> findByRoleId(@Param("roleId") Integer roleId);

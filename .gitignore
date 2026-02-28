@@ -35,3 +35,4 @@ build/
 # Secrets
 *.json
 src/main/resources/gcs-service-account.json
+application-local.properties

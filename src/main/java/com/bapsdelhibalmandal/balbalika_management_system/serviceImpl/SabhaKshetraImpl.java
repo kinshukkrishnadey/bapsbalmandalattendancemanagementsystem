@@ -17,8 +17,10 @@ public class SabhaKshetraImpl implements SabhaKshetraService {
 
     @Override
     public SabhaKshetra createSabhaKshetra(SabhaKshetra sabhaKshetra) {
-        if (sabhaKshetraRepository.existsByKshtra(sabhaKshetra.getKshtra())) {
-            throw new IllegalArgumentException("Kshetra name already exists: " + sabhaKshetra.getKshtra());
+        if (sabhaKshetra.getZone() != null && sabhaKshetra.getZone().getZoneId() != null
+                && sabhaKshetraRepository.existsByKshetraNameAndZone_ZoneId(
+                sabhaKshetra.getKshetraName(), sabhaKshetra.getZone().getZoneId())) {
+            throw new IllegalArgumentException("Kshetra name already exists in this zone: " + sabhaKshetra.getKshetraName());
         }
         return sabhaKshetraRepository.save(sabhaKshetra);
     }
@@ -29,28 +31,36 @@ public class SabhaKshetraImpl implements SabhaKshetraService {
     }
 
     @Override
-    public Optional<SabhaKshetra> getSabhaKshetraById(Integer id) {
+    public Optional<SabhaKshetra> getSabhaKshetraById(Long id) {
         return sabhaKshetraRepository.findById(id);
     }
 
     @Override
-    public SabhaKshetra updateSabhaKshetra(Integer id, SabhaKshetra sabhaKshetra) {
+    public SabhaKshetra updateSabhaKshetra(Long id, SabhaKshetra sabhaKshetra) {
         SabhaKshetra existing = sabhaKshetraRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("SabhaKshetra not found"));
 
-        // Only check uniqueness if name is changing
-        if (!existing.getKshtra().equalsIgnoreCase(sabhaKshetra.getKshtra())
-                && sabhaKshetraRepository.existsByKshtra(sabhaKshetra.getKshtra())) {
-            throw new IllegalArgumentException("Kshetra name already exists: " + sabhaKshetra.getKshtra());
+        if (!existing.getKshetraName().equalsIgnoreCase(sabhaKshetra.getKshetraName())
+                && sabhaKshetra.getZone() != null && sabhaKshetra.getZone().getZoneId() != null
+                && sabhaKshetraRepository.existsByKshetraNameAndZone_ZoneId(
+                sabhaKshetra.getKshetraName(), sabhaKshetra.getZone().getZoneId())) {
+            throw new IllegalArgumentException("Kshetra name already exists in this zone: " + sabhaKshetra.getKshetraName());
         }
 
-        existing.setKshtra(sabhaKshetra.getKshtra());
+        existing.setKshetraName(sabhaKshetra.getKshetraName());
+        if (sabhaKshetra.getZone() != null) {
+            existing.setZone(sabhaKshetra.getZone());
+        }
         return sabhaKshetraRepository.save(existing);
     }
 
     @Override
-    public void deleteSabhaKshetra(Integer id) {
+    public void deleteSabhaKshetra(Long id) {
         sabhaKshetraRepository.deleteById(id);
+    }
 
+    @Override
+    public List<SabhaKshetra> getSabhaKshetraByZoneId(Long zoneId) {
+        return sabhaKshetraRepository.findByZone_ZoneId(zoneId);
     }
 }

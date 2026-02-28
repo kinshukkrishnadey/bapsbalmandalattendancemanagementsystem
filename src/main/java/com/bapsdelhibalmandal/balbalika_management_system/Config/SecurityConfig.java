@@ -8,17 +8,20 @@ import com.bapsdelhibalmandal.balbalika_management_system.repository.UserReposit
 import com.bapsdelhibalmandal.balbalika_management_system.util.JwtUtil;
 import jakarta.servlet.Filter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
-import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 import java.util.List;
 
@@ -38,23 +41,35 @@ public class SecurityConfig {
     @Autowired
     private CustomPermissionEvaluator permissionEvaluator;
 
+    @Value("${app.security.csrf.enabled:false}")
+    private boolean csrfEnabled;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        return http
-                .csrf(csrf -> csrf.disable())
+        var chain = http
+                .cors(cors -> {})
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/h2-console/**", "/").permitAll()
+                        .requestMatchers("/auth/**", "/h2-console/**", "/", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated()
-
                 )
                 .headers(headers -> headers
-                        .frameOptions(frameOptions -> frameOptions.disable())  // ✅ for H2 console
+                        .frameOptions(frameOptions -> frameOptions.disable())  // for H2 console - disable in production
                 )
                 .authenticationProvider(phoneAuthProvider)
                 .addFilterBefore((Filter) jwtFilter(), UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore((Filter) apiAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
-                .build();
+                .addFilterBefore((Filter) apiAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+
+        if (csrfEnabled) {
+            chain.csrf(csrf -> csrf
+                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+            );
+        } else {
+            chain.csrf(csrf -> csrf.disable());
+        }
+
+        return chain.build();
     }
 
     @Bean

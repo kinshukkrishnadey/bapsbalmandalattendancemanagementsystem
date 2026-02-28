@@ -4,6 +4,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
@@ -11,8 +12,11 @@ import java.util.Date;
 
 @Component
 public class JwtUtil {
-    private final String secret = "MY_SECRET_KEY_ABC123"; // move to application.properties
-    private final long expirationMs = 3600000; // 1 hour
+    @Value("${jwt.secret}")
+    private String secret;
+
+    @Value("${jwt.expiration-ms:3600000}")
+    private long expirationMs;
 
     public String generateToken(Authentication auth) {
         String phone = auth.getName();

@@ -7,6 +7,7 @@ import com.bapsdelhibalmandal.balbalika_management_system.model.Role;
 import com.bapsdelhibalmandal.balbalika_management_system.model.SabhaKshetra;
 import com.bapsdelhibalmandal.balbalika_management_system.model.Status;
 import com.bapsdelhibalmandal.balbalika_management_system.repository.KidRepository;
+import com.bapsdelhibalmandal.balbalika_management_system.repository.SabhaKshetraRepository;
 import com.bapsdelhibalmandal.balbalika_management_system.service.KidService;
 import com.bapsdelhibalmandal.balbalika_management_system.util.GoogleCloudStorageUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -25,11 +28,14 @@ import java.util.stream.Collectors;
 public class KidServiceImpl implements KidService {
 
     private final KidRepository kidRepository;
+    private final SabhaKshetraRepository sabhaKshetraRepository;
     private final GoogleCloudStorageUtil googleCloudStorageUtil;
     private final KidMapper kidMapper;
 
-    public KidServiceImpl(KidRepository kidRepository, GoogleCloudStorageUtil googleCloudStorageUtil, KidMapper kidMapper) {
+    public KidServiceImpl(KidRepository kidRepository, SabhaKshetraRepository sabhaKshetraRepository,
+                          GoogleCloudStorageUtil googleCloudStorageUtil, KidMapper kidMapper) {
         this.kidRepository = kidRepository;
+        this.sabhaKshetraRepository = sabhaKshetraRepository;
         this.googleCloudStorageUtil = googleCloudStorageUtil;
         this.kidMapper = kidMapper;
     }
@@ -41,8 +47,13 @@ public class KidServiceImpl implements KidService {
     @Override
     public Kid addKid(Kid kid, MultipartFile photo) {
         try {
+            // Set registration date to current date if not already set
+            if (kid.getRegistrationDate() == null) {
+                kid.setRegistrationDate(LocalDate.now());
+            }
             if (photo != null && !photo.isEmpty()) {
                 String photoUrl = uploadToGCS(photo);
+                kid.setPhotoUrl(photoUrl);  // ✅ Fix: Set the photo URL to kid
             }
             return kidRepository.save(kid);
         } catch (Exception e) {
@@ -70,6 +81,18 @@ public class KidServiceImpl implements KidService {
             SabhaKshetra sabhaKshetra = new SabhaKshetra();
             sabhaKshetra.setKshetraId(updateDTO.getSabhaKshetraId());
             existingKid.setSabhaKshetra(sabhaKshetra);
+        }
+        if (updateDTO.getAssignedSabhaKshetraId() != null) {
+            SabhaKshetra assigned = new SabhaKshetra();
+            assigned.setKshetraId(updateDTO.getAssignedSabhaKshetraId());
+            existingKid.setAssignedSabhaKshetra(assigned);
+        }
+        if (updateDTO.getSupervisedSabhaKshetraIds() != null && !updateDTO.getSupervisedSabhaKshetraIds().isEmpty()) {
+            Set<SabhaKshetra> supervised = new HashSet<>();
+            for (Long kshetraId : updateDTO.getSupervisedSabhaKshetraIds()) {
+                sabhaKshetraRepository.findById(kshetraId).ifPresent(supervised::add);
+            }
+            existingKid.setSupervisedSabhaKshetra(supervised);
         }
 
         // ✅ Map Status manually if ID provided
@@ -105,7 +128,7 @@ public class KidServiceImpl implements KidService {
     }
 
     @Override
-    public List<Kid> getKidsBySabhaKshetra(Integer sabhaKshetraId) {
+    public List<Kid> getKidsBySabhaKshetra(Long sabhaKshetraId) {
         return kidRepository.findBySabhaKshetra_KshetraId(sabhaKshetraId);
     }
 

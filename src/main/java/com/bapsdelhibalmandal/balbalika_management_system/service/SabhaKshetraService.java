@@ -8,7 +8,8 @@ import java.util.Optional;
 public interface SabhaKshetraService {
     SabhaKshetra createSabhaKshetra(SabhaKshetra sabhaKshetra);
     List<SabhaKshetra> getAllSabhaKshetras();
-    Optional<SabhaKshetra> getSabhaKshetraById(Integer id);
-    SabhaKshetra updateSabhaKshetra(Integer id, SabhaKshetra sabhaKshetra);
-    void deleteSabhaKshetra(Integer id);
+    Optional<SabhaKshetra> getSabhaKshetraById(Long id);
+    SabhaKshetra updateSabhaKshetra(Long id, SabhaKshetra sabhaKshetra);
+    void deleteSabhaKshetra(Long id);
+    List<SabhaKshetra> getSabhaKshetraByZoneId(Long zoneId);
 }

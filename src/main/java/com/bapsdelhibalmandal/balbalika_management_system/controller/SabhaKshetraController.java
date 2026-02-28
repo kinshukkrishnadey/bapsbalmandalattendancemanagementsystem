@@ -1,10 +1,10 @@
 package com.bapsdelhibalmandal.balbalika_management_system.controller;
 
-
 import com.bapsdelhibalmandal.balbalika_management_system.model.SabhaKshetra;
 import com.bapsdelhibalmandal.balbalika_management_system.service.SabhaKshetraService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,6 +17,7 @@ public class SabhaKshetraController {
     private SabhaKshetraService sabhaKshetraService;
 
     @PostMapping
+    @PreAuthorize("hasPermission(null, 'CREATE_SABHAKSHETRA')")
     public ResponseEntity<SabhaKshetra> addSabhaKshetra(@RequestBody SabhaKshetra sabhaKshetra) {
         return ResponseEntity.ok(sabhaKshetraService.createSabhaKshetra(sabhaKshetra));
     }
@@ -27,19 +28,26 @@ public class SabhaKshetraController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<SabhaKshetra> getSabhaKshetraById(@PathVariable Integer id) {
+    public ResponseEntity<SabhaKshetra> getSabhaKshetraById(@PathVariable Long id) {
         return sabhaKshetraService.getSabhaKshetraById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/zone/{zoneId}")
+    public ResponseEntity<List<SabhaKshetra>> getSabhaKshetraByZone(@PathVariable Long zoneId) {
+        return ResponseEntity.ok(sabhaKshetraService.getSabhaKshetraByZoneId(zoneId));
+    }
+
     @PutMapping("/{id}")
-    public ResponseEntity<SabhaKshetra> updateSabhaKshetra(@PathVariable Integer id, @RequestBody SabhaKshetra sabhaKshetra) {
+    @PreAuthorize("hasPermission(null, 'CREATE_SABHAKSHETRA')")
+    public ResponseEntity<SabhaKshetra> updateSabhaKshetra(@PathVariable Long id, @RequestBody SabhaKshetra sabhaKshetra) {
         return ResponseEntity.ok(sabhaKshetraService.updateSabhaKshetra(id, sabhaKshetra));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSabhaKshetra(@PathVariable Integer id) {
+    @PreAuthorize("hasPermission(null, 'CREATE_SABHAKSHETRA')")
+    public ResponseEntity<Void> deleteSabhaKshetra(@PathVariable Long id) {
         sabhaKshetraService.deleteSabhaKshetra(id);
         return ResponseEntity.noContent().build();
     }

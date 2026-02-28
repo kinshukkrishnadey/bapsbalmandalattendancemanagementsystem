@@ -1,6 +1,6 @@
 package com.bapsdelhibalmandal.balbalika_management_system.DTO;
 
-
+import com.bapsdelhibalmandal.balbalika_management_system.enums.Gender;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,21 +14,19 @@ import java.util.Set;
 @NoArgsConstructor
 @Builder
 public class KidDto {
-    private String gender;
+    private Gender gender;  // BAL = Male, BALIKA = Female
     private LocalDate dateOfBirth;
+    private LocalDate registrationDate;  // Date when kid was registered
     private Integer age;
     private String motherName;
-
     private String photoUrl;
-
-    // Contact Info
     private String phoneNumber;
-
-    // Address Info
     private String area;
 
-    // Related IDs for dropdowns
-    private Integer sabhaKshetraId;
+    // Related IDs
+    private Long sabhaKshetraId;           // Where kid is enrolled (student)
+    private Long assignedSabhaKshetraId;   // Where Sanchalak/Sah-Sanchalak takes attendance
+    private Set<Long> supervisedSabhaKshetraIds;  // SabhaKshetra Nirdeshak oversees
     private Integer statusId;
     private Set<Integer> roleIds;
 }

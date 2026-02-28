@@ -1,0 +1,6 @@
+# Local MySQL credentials (not committed to git)
+# Copy this file to application-local.properties and fill in your MySQL username/password
+# The application will automatically load application-local.properties if it exists
+
+spring.datasource.username=root
+spring.datasource.password=YOUR_MYSQL_PASSWORD

@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,12 +27,11 @@ public class KidController {
     @Autowired
     private KidMapper kidMapper;
 
-    @PreAuthorize("hasPermission(null, 'ADD_KID')")
-    @PostMapping("/register")
+    @PreAuthorize("hasRole('ADMIN') or hasPermission(null, 'ADD_KID')")
+    @RequestMapping(value = "/register", method = RequestMethod.POST, consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Kid> addKid(@RequestPart("kid") Kid kid,
                                       @RequestPart(value = "photo", required = false) MultipartFile photo){
         return new ResponseEntity<Kid>(kidService.addKid(kid, photo), HttpStatus.CREATED);
-
     }
 
     @GetMapping("/getallkiddetails")
@@ -45,7 +46,7 @@ public class KidController {
     }
 
     @PreAuthorize("hasPermission(null, 'UPDATE_KID')")
-    @PutMapping("/update/{id}")
+    @PutMapping(value = "/update/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<KidDto> updateKid(@PathVariable("id") Long kidId,
                                             @RequestPart("updateDTO") KidUpdateDto dto,
                                             @RequestPart(value = "photo", required = false) MultipartFile photo) {
@@ -72,7 +73,7 @@ public class KidController {
 
 
     @GetMapping("/by-sabhakshetra/{sabhaKshetraId}")
-    public ResponseEntity<List<KidDto>> getKidsBySabhaKshetra(@PathVariable Integer sabhaKshetraId) {
+    public ResponseEntity<List<KidDto>> getKidsBySabhaKshetra(@PathVariable Long sabhaKshetraId) {
         List<Kid> kids = kidService.getKidsBySabhaKshetra(sabhaKshetraId);
         List<KidDto> dtoList = kids.stream().map(kidMapper::toDto).collect(Collectors.toList());
         return ResponseEntity.ok(dtoList);

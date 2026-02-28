@@ -1,6 +1,7 @@
 package com.bapsdelhibalmandal.balbalika_management_system.model;
 
 import com.bapsdelhibalmandal.balbalika_management_system.enums.Right;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,11 +16,12 @@ import java.util.Set;
 public class Role {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer roleId;
     private String roleName;
 
     @ManyToMany(mappedBy = "roles")
+    @JsonIgnore
     private Set<User> users;
 
     @ElementCollection(targetClass = Right.class, fetch = FetchType.EAGER)

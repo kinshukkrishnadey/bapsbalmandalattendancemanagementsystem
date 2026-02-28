@@ -3,21 +3,24 @@ package com.bapsdelhibalmandal.balbalika_management_system.Security;
 
 
 import com.bapsdelhibalmandal.balbalika_management_system.util.JwtUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class ApiAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
 
     private final JwtUtil jwtUtil;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
 
     public ApiAuthenticationFilter(String defaultFilterProcessesUrl, AuthenticationManager authenticationManager, JwtUtil jwtUtil) {
@@ -36,8 +39,7 @@ public class ApiAuthenticationFilter extends AbstractAuthenticationProcessingFil
             throw new IllegalArgumentException("Phone and OTP must be provided");
         }
 
-        Authentication authRequest = new UsernamePasswordAuthenticationToken(phone, otp);
-        return getAuthenticationManager().authenticate(authRequest);
+        return getAuthenticationManager().authenticate(new PhoneAuthenticationToken(phone, otp));
     }
 
     @Override
@@ -46,8 +48,14 @@ public class ApiAuthenticationFilter extends AbstractAuthenticationProcessingFil
                                             FilterChain chain,
                                             Authentication authResult)
             throws IOException, ServletException {
-        // Token generation or redirect logic goes here
-        response.getWriter().write("Login successful");
+        String token = jwtUtil.generateToken(authResult);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.getWriter().write(objectMapper.writeValueAsString(Map.of(
+                "message", "Login successful",
+                "token", token,
+                "type", "Bearer"
+        )));
     }
 
 

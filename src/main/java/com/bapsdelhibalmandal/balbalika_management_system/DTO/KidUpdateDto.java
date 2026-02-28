@@ -17,7 +17,9 @@ public class KidUpdateDto {
     private String state;
     private Long pincode;
 
-    private Integer sabhaKshetraId;
+    private Long sabhaKshetraId;           // Enrolled SabhaKshetra
+    private Long assignedSabhaKshetraId;    // For Sanchalak/Sah-Sanchalak
+    private Set<Long> supervisedSabhaKshetraIds;  // For Nirdeshak
     private Integer statusId;
     private Set<Integer> roleIds;
 }

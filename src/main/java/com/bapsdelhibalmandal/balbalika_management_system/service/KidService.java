@@ -12,7 +12,7 @@ public interface KidService {
     public List<Kid> listAllKids();
     public Kid getKidById(Long kidId);
     Kid updateKid(Long id, KidUpdateDto updateDTO, MultipartFile photo);
-    List<Kid> getKidsBySabhaKshetra(Integer sabhaKshetraId);
+    List<Kid> getKidsBySabhaKshetra(Long sabhaKshetraId);
     List<Kid> getKidsByRole(Integer roleId);
 
 }
