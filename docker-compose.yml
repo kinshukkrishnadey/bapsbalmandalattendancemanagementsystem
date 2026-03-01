@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: balbalika-management-system
+    ports:
+      - "3900:3900"
+    environment:
+      # Database
+      - DB_USERNAME=root
+      - DB_PASSWORD=rootuser
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/bapsdelhibalmandal
+      
+      # JWT
+      - JWT_SECRET=your-secret-key-change-in-production
+      
+      # CORS
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3900
+      
+      # GCP Credentials - Option 1: JSON as string (recommended for Docker Compose)
+      # Uncomment and paste your service account JSON (minified, single line)
+      # - GCP_CREDENTIALS_JSON={"type":"service_account","project_id":"...","private_key":"...","client_email":"..."}
+      
+      # GCP Credentials - Option 2: Mount secret file (see volumes below)
+      # - GCP_CREDENTIALS_PATH=/app/secrets/gcs-service-account.json
+      
+      # GCP Bucket
+      - GCP_BUCKET_NAME=baps-child-photos
+    volumes:
+      # Option 2: Mount service account file from host
+      # - ./secrets/gcs-service-account.json:/app/secrets/gcs-service-account.json:ro
+    depends_on:
+      - db
+    networks:
+      - balbalika-network
+
+  db:
+    image: mysql:8.0
+    container_name: balbalika-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootuser
+      - MYSQL_DATABASE=bapsdelhibalmandal
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - balbalika-network
+
+volumes:
+  mysql-data:
+
+networks:
+  balbalika-network:
+    driver: bridge

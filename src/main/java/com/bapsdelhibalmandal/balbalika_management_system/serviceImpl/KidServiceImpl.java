@@ -10,7 +10,10 @@ import com.bapsdelhibalmandal.balbalika_management_system.repository.KidReposito
 import com.bapsdelhibalmandal.balbalika_management_system.repository.SabhaKshetraRepository;
 import com.bapsdelhibalmandal.balbalika_management_system.service.KidService;
 import com.bapsdelhibalmandal.balbalika_management_system.util.GoogleCloudStorageUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,10 +30,17 @@ import java.util.stream.Collectors;
 @Service
 public class KidServiceImpl implements KidService {
 
+    private static final Logger logger = LoggerFactory.getLogger(KidServiceImpl.class);
+    
     private final KidRepository kidRepository;
     private final SabhaKshetraRepository sabhaKshetraRepository;
     private final GoogleCloudStorageUtil googleCloudStorageUtil;
     private final KidMapper kidMapper;
+
+    @Value("${gcp.bucket.name:baps-child-photos}")
+    private String bucketName;
+
+    private final String FOLDER_NAME = "kid-photos";
 
     public KidServiceImpl(KidRepository kidRepository, SabhaKshetraRepository sabhaKshetraRepository,
                           GoogleCloudStorageUtil googleCloudStorageUtil, KidMapper kidMapper) {
@@ -39,9 +49,6 @@ public class KidServiceImpl implements KidService {
         this.googleCloudStorageUtil = googleCloudStorageUtil;
         this.kidMapper = kidMapper;
     }
-
-    private final String BUCKET_NAME = "your-gcs-bucket";
-    private final String FOLDER_NAME = "kid-photos";
 
 
     @Override
@@ -55,7 +62,10 @@ public class KidServiceImpl implements KidService {
                 String photoUrl = uploadToGCS(photo);
                 kid.setPhotoUrl(photoUrl);  // ✅ Fix: Set the photo URL to kid
             }
-            return kidRepository.save(kid);
+            Kid savedKid = kidRepository.save(kid);
+            // Generate signed URL for photo before returning
+            generateSignedPhotoUrl(savedKid);
+            return savedKid;
         } catch (Exception e) {
             throw new RuntimeException("Error saving kid with photo", e);
         }
@@ -63,12 +73,18 @@ public class KidServiceImpl implements KidService {
 
     @Override
     public List<Kid> listAllKids() {
-        return kidRepository.findAll();
+        List<Kid> kids = kidRepository.findAll();
+        // Generate signed URLs for all kids' photos
+        kids.forEach(this::generateSignedPhotoUrl);
+        return kids;
     }
 
     @Override
     public Kid getKidById(Long kidId) {
-        return kidRepository.findById(kidId).orElseThrow(() -> new RuntimeException("Kid not found with ID: " + kidId));
+        Kid kid = kidRepository.findById(kidId).orElseThrow(() -> new RuntimeException("Kid not found with ID: " + kidId));
+        // Generate signed URL for photo
+        generateSignedPhotoUrl(kid);
+        return kid;
     }
 
     @Override
@@ -117,24 +133,33 @@ public class KidServiceImpl implements KidService {
             if (photo != null && !photo.isEmpty()) {
                 File tempFile = File.createTempFile("photo-", photo.getOriginalFilename());
                 photo.transferTo(tempFile);
-                String url = googleCloudStorageUtil.uploadFile("your_bucket", "kids", photo.getOriginalFilename(), tempFile.toPath());
+                String url = googleCloudStorageUtil.uploadFile(bucketName, "kid-photos", photo.getOriginalFilename(), tempFile.toPath());
                 existingKid.setPhotoUrl(url);
             }
         } catch (IOException e) {
             throw new RuntimeException("Error uploading photo to GCS", e);
         }
 
-        return kidRepository.save(existingKid);
+        Kid updatedKid = kidRepository.save(existingKid);
+        // Generate signed URL for photo before returning
+        generateSignedPhotoUrl(updatedKid);
+        return updatedKid;
     }
 
     @Override
     public List<Kid> getKidsBySabhaKshetra(Long sabhaKshetraId) {
-        return kidRepository.findBySabhaKshetra_KshetraId(sabhaKshetraId);
+        List<Kid> kids = kidRepository.findBySabhaKshetra_KshetraId(sabhaKshetraId);
+        // Generate signed URLs for all kids' photos
+        kids.forEach(this::generateSignedPhotoUrl);
+        return kids;
     }
 
     @Override
     public List<Kid> getKidsByRole(Integer roleId) {
-        return kidRepository.findByRoleId(roleId);
+        List<Kid> kids = kidRepository.findByRoleId(roleId);
+        // Generate signed URLs for all kids' photos
+        kids.forEach(this::generateSignedPhotoUrl);
+        return kids;
     }
 
     // --- Utility method for converting MultipartFile to local temp file and uploading to GCS ---
@@ -143,6 +168,29 @@ public class KidServiceImpl implements KidService {
         try (FileOutputStream fos = new FileOutputStream(convFile)) {
             fos.write(file.getBytes());
         }
-        return googleCloudStorageUtil.uploadFile(BUCKET_NAME, FOLDER_NAME, file.getOriginalFilename(), Path.of(convFile.getAbsolutePath()));
+        return googleCloudStorageUtil.uploadFile(bucketName, FOLDER_NAME, file.getOriginalFilename(), Path.of(convFile.getAbsolutePath()));
+    }
+
+    /**
+     * Generates a signed URL for the kid's photo if it exists.
+     * This allows secure access to private GCS objects without making the bucket public.
+     */
+    private void generateSignedPhotoUrl(Kid kid) {
+        if (kid != null && kid.getPhotoUrl() != null && !kid.getPhotoUrl().isEmpty()) {
+            try {
+                String originalUrl = kid.getPhotoUrl();
+                String signedUrl = googleCloudStorageUtil.generateSignedUrl(originalUrl);
+                if (signedUrl != null && !signedUrl.equals(originalUrl)) {
+                    kid.setPhotoUrl(signedUrl);
+                    logger.debug("Generated signed URL for kid {} photo", kid.getKidId());
+                } else {
+                    logger.warn("Signed URL generation returned original URL for kid {} photo: {}", kid.getKidId(), originalUrl);
+                }
+            } catch (Exception e) {
+                // If signed URL generation fails, keep original URL
+                // Log error but don't fail the request
+                logger.error("Failed to generate signed URL for kid {} photo: {} - {}", kid.getKidId(), kid.getPhotoUrl(), e.getMessage(), e);
+            }
+        }
     }
 }

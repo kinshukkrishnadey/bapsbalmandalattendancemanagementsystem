@@ -1,0 +1,88 @@
+name: MySQL Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'k8s/mysql-deployment.yaml'
+      - '.github/workflows/mysql-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      force_recreate:
+        description: 'Force recreate MySQL (will cause data loss)'
+        required: false
+        default: 'false'
+
+env:
+  KUBERNETES_NAMESPACE: default
+
+jobs:
+  deploy-mysql:
+    runs-on: ubuntu-latest
+    environment: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+          kubectl config set-context --current --namespace=${{ env.KUBERNETES_NAMESPACE }}
+
+      - name: Create database secret
+        run: |
+          kubectl create secret generic db-credentials \
+            --from-literal=url=jdbc:mysql://mysql:3306/bapsdelhibalmandal \
+            --from-literal=username=root \
+            --from-literal=password=${{ secrets.DB_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy MySQL
+        run: |
+          kubectl apply -f k8s/mysql-deployment.yaml
+          
+          # Wait for MySQL to be ready
+          kubectl wait --for=condition=ready pod -l app=mysql --timeout=300s
+
+      - name: Initialize database (first time only)
+        run: |
+          # Wait a bit more for MySQL to fully start
+          sleep 10
+          
+          # Check if database exists
+          DB_EXISTS=$(kubectl exec -it deployment/mysql -- mysql -uroot -p${{ secrets.DB_PASSWORD }} -e "SHOW DATABASES LIKE 'bapsdelhibalmandal';" 2>/dev/null | grep -c bapsdelhibalmandal || echo "0")
+          
+          if [ "$DB_EXISTS" = "0" ]; then
+            echo "Database does not exist. Creating..."
+            kubectl exec -i deployment/mysql -- mysql -uroot -p${{ secrets.DB_PASSWORD }} <<EOF
+            CREATE DATABASE IF NOT EXISTS bapsdelhibalmandal;
+            USE bapsdelhibalmandal;
+            EOF
+            
+            # Run seed script if available
+            if [ -f "sql/seed-data.sql" ]; then
+              echo "Running seed script..."
+              kubectl exec -i deployment/mysql -- mysql -uroot -p${{ secrets.DB_PASSWORD }} bapsdelhibalmandal < sql/seed-data.sql || true
+            fi
+          else
+            echo "Database already exists. Skipping initialization."
+          fi
+
+      - name: Verify MySQL deployment
+        run: |
+          kubectl get pods -l app=mysql
+          kubectl get services mysql
+          kubectl get pvc mysql-pvc
+
+      - name: Display connection info
+        run: |
+          echo "MySQL is deployed and ready!"
+          echo "Internal service: mysql:3306"
+          echo "To connect from outside:"
+          echo "  kubectl port-forward service/mysql 3306:3306"

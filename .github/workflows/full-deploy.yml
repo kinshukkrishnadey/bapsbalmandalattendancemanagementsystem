@@ -1,0 +1,157 @@
+name: Backend and MySQL Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: balbalika-backend
+  KUBERNETES_NAMESPACE: default
+
+jobs:
+  deploy-mysql:
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+          kubectl config set-context --current --namespace=${{ env.KUBERNETES_NAMESPACE }}
+
+      - name: Create database secret
+        run: |
+          kubectl create secret generic db-credentials \
+            --from-literal=url=jdbc:mysql://mysql:3306/bapsdelhibalmandal \
+            --from-literal=username=root \
+            --from-literal=password=${{ secrets.DB_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy MySQL
+        run: |
+          kubectl apply -f k8s/mysql-deployment.yaml
+          kubectl wait --for=condition=ready pod -l app=mysql --timeout=300s || true
+
+  deploy-backend:
+    needs: deploy-mysql
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run Maven tests
+        run: mvn clean test -DskipTests=false
+        continue-on-error: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+          kubectl config set-context --current --namespace=${{ env.KUBERNETES_NAMESPACE }}
+
+      - name: Create/Update secrets
+        run: |
+          kubectl create secret generic db-credentials \
+            --from-literal=url=jdbc:mysql://mysql:3306/bapsdelhibalmandal \
+            --from-literal=username=root \
+            --from-literal=password=${{ secrets.DB_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          kubectl create secret generic app-secrets \
+            --from-literal=jwt-secret=${{ secrets.JWT_SECRET }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          kubectl create secret generic twilio-credentials \
+            --from-literal=account-sid=${{ secrets.TWILIO_ACCOUNT_SID }} \
+            --from-literal=auth-token=${{ secrets.TWILIO_AUTH_TOKEN }} \
+            --from-literal=from-number=${{ secrets.TWILIO_FROM_NUMBER }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo "${{ secrets.GCP_CREDENTIALS_JSON }}" | base64 -d | \
+            kubectl create secret generic gcp-service-account \
+            --from-file=credentials.json=/dev/stdin \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Update ConfigMap
+        run: |
+          kubectl create configmap app-config \
+            --from-literal=CORS_ALLOWED_ORIGINS="${{ secrets.CORS_ALLOWED_ORIGINS }}" \
+            --from-literal=GCP_BUCKET_NAME=baps-child-photos \
+            --from-literal=SMS_PROVIDER_ENABLED=true \
+            --from-literal=APP_OTP_EXPIRY_SECONDS=300 \
+            --from-literal=APP_OTP_RETURN_IN_RESPONSE=false \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Update deployment image
+        run: |
+          sed -i "s|your-registry/balbalika-management-system:latest|${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" k8s/deployment.yaml || \
+          sed -i "s|your-registry/balbalika-management-system:latest|${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest|g" k8s/deployment.yaml
+
+      - name: Deploy backend application
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl rollout status deployment/balbalika-management-system --timeout=300s
+
+      - name: Deploy ingress (if configured)
+        run: |
+          if [ -f "k8s/ingress.yaml" ]; then
+            kubectl apply -f k8s/ingress.yaml
+          fi
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -l app=balbalika-management-system
+          kubectl get services
+          echo "Backend deployment complete!"
+          echo "API URL:"
+          kubectl get ingress balbalika-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || \
+          kubectl get service balbalika-management-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || \
+          echo "Use: kubectl port-forward service/balbalika-management-system 3900:80"

@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Build
+target/
+*.jar
+*.war
+
+# Secrets - NEVER include in Docker image
+*.json
+src/main/resources/gcs-service-account.json
+application-local.properties
+secrets/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Kubernetes (not needed in image)
+k8s/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: default
+data:
+  # Application configuration (non-sensitive)
+  SPRING_PROFILES_ACTIVE: "production"
+  SERVER_PORT: "3900"
+  
+  # CORS - Update with your frontend URL
+  CORS_ALLOWED_ORIGINS: "https://your-frontend-domain.com,http://localhost:3000"
+  
+  # GCP Bucket
+  GCP_BUCKET_NAME: "baps-child-photos"
+  
+  # OTP Configuration
+  APP_OTP_EXPIRY_SECONDS: "300"
+  APP_OTP_RETURN_IN_RESPONSE: "false"
+  
+  # SMS Provider (Twilio)
+  SMS_PROVIDER_ENABLED: "true"
+  SMS_PROVIDER_URL: "https://control.msg91.com/api/sendotp.php"  # Not used for Twilio, but kept for compatibility
+  
+  # JPA Configuration
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+  SPRING_JPA_SHOW_SQL: "false"
+  
+  # Security
+  APP_SECURITY_CSRF_ENABLED: "false"

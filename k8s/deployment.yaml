@@ -1,0 +1,149 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: balbalika-management-system
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: balbalika-management-system
+  template:
+    metadata:
+      labels:
+        app: balbalika-management-system
+    spec:
+      containers:
+      - name: app
+        image: your-registry/balbalika-management-system:latest  # UPDATE THIS with your container registry
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3900
+          name: http
+        env:
+        # Database
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: url
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        
+        # JWT
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: jwt-secret
+        
+        # CORS - from ConfigMap
+        - name: CORS_ALLOWED_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: CORS_ALLOWED_ORIGINS
+        
+        # GCP Credentials - Mount secret file and use path
+        - name: GCP_CREDENTIALS_PATH
+          value: "/app/secrets/credentials.json"
+        
+        # GCP Bucket - from ConfigMap
+        - name: GCP_BUCKET_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: GCP_BUCKET_NAME
+        
+        # Twilio SMS Configuration
+        - name: SMS_PROVIDER_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: SMS_PROVIDER_ENABLED
+        - name: TWILIO_ACCOUNT_SID
+          valueFrom:
+            secretKeyRef:
+              name: twilio-credentials
+              key: account-sid
+        - name: TWILIO_AUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: twilio-credentials
+              key: auth-token
+        - name: TWILIO_FROM_NUMBER
+          valueFrom:
+            secretKeyRef:
+              name: twilio-credentials
+              key: from-number
+        
+        # OTP Configuration - from ConfigMap
+        - name: APP_OTP_EXPIRY_SECONDS
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: APP_OTP_EXPIRY_SECONDS
+        - name: APP_OTP_RETURN_IN_RESPONSE
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: APP_OTP_RETURN_IN_RESPONSE
+        
+        # Resource limits
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 3900
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        
+        # Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 3900
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        # Mount GCP service account secret as file
+        volumeMounts:
+        - name: gcp-credentials
+          mountPath: /app/secrets
+          readOnly: true
+      
+      volumes:
+      - name: gcp-credentials
+        secret:
+          secretName: gcp-service-account
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: balbalika-management-system
+  namespace: default
+spec:
+  type: LoadBalancer
+  selector:
+    app: balbalika-management-system
+  ports:
+  - port: 80
+    targetPort: 3900
+    protocol: TCP
+    name: http

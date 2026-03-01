@@ -36,3 +36,10 @@ build/
 *.json
 src/main/resources/gcs-service-account.json
 application-local.properties
+k8s/secret.yaml
+k8s/secrets.yaml
+secrets/
+
+# GitHub Actions (keep workflows, ignore local test files)
+.github/workflows/*.local.yml
+.github/workflows/*.test.yml
